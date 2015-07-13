@@ -1,0 +1,8 @@
+*.swp
+*.swo
+*.core
+*.bin
+*.o
+*.elf
+*.eep
+*.hex
