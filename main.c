@@ -1,4 +1,4 @@
-#define F_CPU 16000000
+#define F_CPU 16000000UL
 
 #define LED_NUM 4
 #define PWM_PERIOD_LENGTH 65535
@@ -7,13 +7,51 @@
 // This ought to make sure they won't go up in smoke.
 #define PWM_MAX PWM_PERIOD_LENGTH - 1
 
+//#define BAUD 57600
+#define BAUD 9600
+#define LINE_LENGTH 54
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <util/setbaud.h> // Uses BAUD define
 #include <util/delay.h>
 
 
-void setup(void){
+void uart_putchar(char c, FILE *stream) {
+    if (c == '\n') {
+        uart_putchar('\r', stream);
+    }
+
+    loop_until_bit_is_set(UCSR0A, UDRE0);
+    UDR0 = c;
+}
+
+FILE uart_output = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
+
+
+void uart_setup(void){
+
+    UCSR0A = 0;
+    UCSR0B = 0;
+    UCSR0C = 0;
+
+    UCSR0B = 0;
+    UCSR0B |= (1 << RXEN0) | (1 << TXEN0); //| (1 << RXCIE0) | (1 << TXCIE0); // Enable transmissitting and receiving
+    UCSR0C |= (1 << UCSZ01) | (1 << UCSZ00); // 8 bit per transmitted byte
+
+    UBRR0H = UBRRH_VALUE;
+    UBRR0L = UBRRL_VALUE;
+    #if USE_2X
+    UCSR0A |= (1 << U2X0);
+    #else
+    UCSR0A &= ~(1 << U2X0);
+    #endif
+}
+
+void led_setup(void){
 
   TCCR1B = 0;
   TCCR1A = 0;       
@@ -79,11 +117,11 @@ void setup(void){
 
 
   // Set output direction for all ports connected to pwm channels 
-  DDRB |= (1<<PB7) | (1<<PB6) | (1<<PB5);  // Bit 7 als Ausgang
-  DDRE |= (1<<PE5);  // Bit 5 als Ausgang
-  DDRH |= (1<<PH5);  // Bit 5 als Ausgang
+  DDRB |= (1<<PB7) | (1<<PB6) | (1<<PB5);  // Bit 5-7 als Ausgang
+  DDRE |= (1<<PE3) | (1<<PE4) | (1<<PE5);  // Bit 3-5 als Ausgang
+  DDRH |= (1<<PH3) | (1<<PH4) | (1<<PH5);  // Bit 3-5 als Ausgang
 
-  TIMSK1 |= (1>>TOIE1); // Let timer 1 trigger interrupt
+  //TIMSK1 |= (1>>TOIE1); // Let timer 1 trigger interrupt
 
 }
 
@@ -96,6 +134,7 @@ typedef struct led {
     volatile uint16_t* blue;
 }LED;
 
+
 volatile LED LEDS[LED_NUM] = {
     { &OCR1A, &OCR1B, &OCR1C },
     { &OCR3A, &OCR3B, &OCR3C },
@@ -104,32 +143,108 @@ volatile LED LEDS[LED_NUM] = {
 };
 
 
-ISR( TIMER1_OVF_vect ) {
+/*ISR( TIMER1_OVF_vect ) {
 
     FL_UPDATE = 1;
+}*/
+
+
+int flag_set(int reg, int bit_pos){
+    return (((1 << bit_pos) & (int)reg) == (1 << bit_pos));
 }
 
 
 int main(void){
 
-    setup(); // Configure / set up LEDs and interrupts
-    sei(); // Globally enable interrupts
+    uart_setup();
+    led_setup(); // Configure / set up LEDs and interrupts
+    //sei(); // Globally enable interrupts
 
-    uint16_t i = 0;
+    stdout = &uart_output;
+
+    // LED stuff
+    //volatile uint16_t* channel;
+
+    // uart / usb api stuff 
+    uint8_t line_idx = 0;
+    char line[LINE_LENGTH] = "";
 
     while(1) {
 
-        if(FL_UPDATE){
+        if(flag_set(UCSR0A, RXC0)){
 
-            if(i > PWM_MAX || i == 65535){
-                i = 0;
+            char c = UDR0;
+            // Carriage return (enter)
+            if((c == '\n') || ((int)c == 13) || (line_idx == LINE_LENGTH)){
+                //printf("LINE COMPLETED\n");
+
+                char *command_name = strtok(line, " ");
+
+                if(strcmp(command_name,"FRAME") == 0){ // Is valid command
+
+                    uint8_t i = 0;
+                    uint8_t values[12] = {0,0,0, 0,0,0, 0,0,0, 0,0,0};
+                    char* token;
+                    while((token = strtok(NULL, " "))){
+                        values[i] = atoi(token);
+                        i++;
+                    }
+
+                    uint8_t sub = 0;
+                    uint8_t led_num = 0;
+                    volatile uint16_t* channel;
+
+                    for(i = 0; i < 12; i++){
+
+                        if((i > 0) && (i % 3 == 0)){
+                            led_num++;
+                            sub = 0;
+                        }
+
+                        switch(sub){
+
+                            case 0:
+                                channel = LEDS[led_num].red;
+                                break;
+
+                            case 1:
+                                channel = LEDS[led_num].green;
+                                break;
+
+                            case 2:
+                                channel = LEDS[led_num].blue;
+                                break;
+                        }
+
+                        *channel = values[i] * 255;
+                        sub++;
+                    }
+
+                    printf("OK\n");
+                }
+
+                // Reset line_idx and line
+                line_idx = 0;
+                memset(line, 0, sizeof(line));
+
+            } else  {
+                line[line_idx] = c;
+                line_idx++;
             }
-
-            *LEDS[0].red = i;
-            *LEDS[0].blue = i;
-            _delay_us(50);
-
-            i++;
         }
+
+
+        // LED Test code that works without shit from UART
+/*        for(uint8_t l = 0; l < LED_NUM; l++){
+
+            for(uint16_t x = 0; x < PWM_MAX; x++){
+
+                *LEDS[l].red = x;
+                *LEDS[l].green = x;
+                *LEDS[l].blue = x;
+                _delay_us(50);
+            }
+        }*/
+
     }
 }
