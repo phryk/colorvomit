@@ -3,6 +3,7 @@
 
 import serial
 import colorsys
+import numpy
 from time import sleep
 
 class LED(object):
@@ -61,27 +62,26 @@ class Display(list):
 
         line = 'FRAME '+' '.join([str(item) for item in self])
         self.conn.write(line)
+        print "Response: "+self.conn.readline()
 
 
 if __name__ == '__main__':
 
 
-    com = serial.Serial('/dev/ttyU1', 57600, timeout=0.5)
+    com = serial.Serial('/dev/ttyU1', 115200, timeout=0.5)
     display = Display(com, [LED(), LED(), LED(), LED()])
 
-    print "sleeping 3 secs"
-    sleep(3);
+    print "sleeping a bit"
+    sleep(1.5);
 
     while(True):
 
-        for v in range(0, 256):
-
-            print v
+        for hue in numpy.linspace(0,1, 100):
 
             for led in display:
-                led.red = 0
-                led.green = v
-                led.blue = v
+                led.hue = hue
+                led.saturation = 1
+                led.value = 255
 
             display.render()
             sleep(0.01)

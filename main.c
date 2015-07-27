@@ -8,8 +8,10 @@
 #define PWM_MAX PWM_PERIOD_LENGTH - 1
 
 //#define BAUD 57600
-#define BAUD 9600
-#define LINE_LENGTH 54
+//#define BAUD 250000 
+//#define BAUD 9600
+#define BAUD 115200
+#define LINE_LENGTH 54 // Maximum length in byte of a single command from USB
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -42,13 +44,12 @@ void uart_setup(void){
     UCSR0B |= (1 << RXEN0) | (1 << TXEN0); //| (1 << RXCIE0) | (1 << TXCIE0); // Enable transmissitting and receiving
     UCSR0C |= (1 << UCSZ01) | (1 << UCSZ00); // 8 bit per transmitted byte
 
-    UBRR0H = UBRRH_VALUE;
-    UBRR0L = UBRRL_VALUE;
-    #if USE_2X
-    UCSR0A |= (1 << U2X0);
-    #else
+    //UBRR0H = UBRRH_VALUE;
+    //UBRR0L = UBRRL_VALUE;
+    UBRR0H = 0;
+    UBRR0L = 8; 
+    //UCSR0A |= (1 << U2X0);
     UCSR0A &= ~(1 << U2X0);
-    #endif
 }
 
 void led_setup(void){
@@ -120,7 +121,8 @@ void led_setup(void){
   DDRB |= (1<<PB7) | (1<<PB6) | (1<<PB5);  // Bit 5-7 als Ausgang
   DDRE |= (1<<PE3) | (1<<PE4) | (1<<PE5);  // Bit 3-5 als Ausgang
   DDRH |= (1<<PH3) | (1<<PH4) | (1<<PH5);  // Bit 3-5 als Ausgang
-
+  DDRL |= (1<<PL3) | (1<<PL4) | (1<<PL5);  // Bit 3-5 als Ausgang
+    
   //TIMSK1 |= (1>>TOIE1); // Let timer 1 trigger interrupt
 
 }
@@ -156,6 +158,8 @@ int flag_set(int reg, int bit_pos){
 
 int main(void){
 
+    _delay_ms(1000);
+
     uart_setup();
     led_setup(); // Configure / set up LEDs and interrupts
     //sei(); // Globally enable interrupts
@@ -168,6 +172,7 @@ int main(void){
     // uart / usb api stuff 
     uint8_t line_idx = 0;
     char line[LINE_LENGTH] = "";
+    uint8_t odd = 1;
 
     while(1) {
 
@@ -176,7 +181,6 @@ int main(void){
             char c = UDR0;
             // Carriage return (enter)
             if((c == '\n') || ((int)c == 13) || (line_idx == LINE_LENGTH)){
-                //printf("LINE COMPLETED\n");
 
                 char *command_name = strtok(line, " ");
 
