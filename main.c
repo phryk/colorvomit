@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <util/setbaud.h> // Uses BAUD define
+//#include <util/setbaud.h> // Uses BAUD define
 #include <util/delay.h>
 
 
@@ -47,9 +47,9 @@ void uart_setup(void){
     //UBRR0H = UBRRH_VALUE;
     //UBRR0L = UBRRL_VALUE;
     UBRR0H = 0;
-    UBRR0L = 8; 
-    //UCSR0A |= (1 << U2X0);
-    UCSR0A &= ~(1 << U2X0);
+    UBRR0L = 34; 
+    UCSR0A |= (1 << U2X0);
+    //UCSR0A &= ~(1 << U2X0);
 }
 
 void led_setup(void){
@@ -157,8 +157,6 @@ int flag_set(int reg, int bit_pos){
 
 
 int main(void){
-
-    _delay_ms(1000);
 
     uart_setup();
     led_setup(); // Configure / set up LEDs and interrupts

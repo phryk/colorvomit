@@ -55,24 +55,35 @@ class Display(list):
     def __init__(self, conn, *args, **kw):
 
         self.conn = conn
+        self.successes = 0
+        self.failures = 0
         super(Display, self).__init__(*args, **kw)
 
 
     def render(self):
 
-        line = 'FRAME '+' '.join([str(item) for item in self])
+        line = 'FRAME %s\n' % (' '.join([str(item) for item in self]),)
         self.conn.write(line)
-        print "Response: "+self.conn.readline()
+        resp = self.conn.readline()
+
+        if resp.startswith('OK'):
+            self.successes += 1
+        else:
+            self.failures += 1
+            print "Success count: %d" % (self.successes,)
+            print "Failure count: %d" % (self.failures,)
+
+            print (float(self.failures) / float(self.successes + self.failures)) * 100
 
 
 if __name__ == '__main__':
 
 
-    com = serial.Serial('/dev/ttyU1', 115200, timeout=0.5)
+    com = serial.Serial('/dev/cuaU1', 57600, timeout=0.5)
     display = Display(com, [LED(), LED(), LED(), LED()])
 
     print "sleeping a bit"
-    sleep(1.5);
+    sleep(3);
 
     while(True):
 
