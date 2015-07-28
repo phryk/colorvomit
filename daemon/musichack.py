@@ -16,7 +16,7 @@ FIFO_FILE = '/tmp/mpd.fifo'
 FREQ = 44100 # Not currently used
 SAMPLE_MIN = -32768
 SAMPLE_MAX = 32767
-WINDOW_SIZE = 4096 # The number of samples used to build a spectrum, also the size of the Collector
+WINDOW_SIZE = 2048 # The number of samples used to build a spectrum, also the size of the Collector
 READ_SIZE = 2 # How many samples to read at once, make this WINDOW_SIZE if any problems occur
 
 
@@ -187,6 +187,7 @@ class Visualizer(object):
     analyzer = None
     display = None
     smoothed_amplitudes = None
+    smoothed_volume = None
 
     def __init__(self, analyzer, display):
 
@@ -195,12 +196,14 @@ class Visualizer(object):
 
         amps = []
         self.smoothed_amplitudes = numpy.zeros(int(WINDOW_SIZE/4))
+        self.smoothed_volume = 0
 
     def update(self):
         if self.analyzer.filled:
 
             amplitudes = self.analyzer.get_amplitudes()
             self.smoothed_amplitudes = (self.smoothed_amplitudes * 0.95) + (amplitudes * 0.05)
+            self.smoothed_volume = (self.smoothed_volume * 0.95) + (amplitudes[-1] * 0.05)
             frame = self.smoothed_amplitudes
 
 
@@ -209,14 +212,14 @@ class TestVisu(Visualizer):
     def update(self):
 
         if self.analyzer.filled:
-            amplitudes = self.analyzer.get_amplitudes_in_bins(8)
-            volume = self.analyzer.get_amplitudes_in_bins(1)
+            amplitudes = self.analyzer.get_amplitudes_in_bins(4)
+            self.smoothed_volume = (self.smoothed_volume * 0.9) + (amplitudes[-1] * 0.1)
 
             i = 0
             for led in display:
-                led.hue += amplitudes[i]
+                led.hue += amplitudes[i] * 0.2
                 led.saturation = 1
-                led.value = volume 
+                led.value = self.smoothed_volume
                 i += 1
 
 
@@ -306,8 +309,10 @@ if __name__ == '__main__':
     collector.start()
     visu = TestVisu(analyzer, display)
 
-    print "sleeping a bit"
-    sleep(3);
+    print "Sleeping a bit."
+    sleep(3)
+    print "Starting to do stuff now."
+
 
     while(True):
 
