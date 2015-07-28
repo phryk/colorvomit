@@ -63,6 +63,7 @@ class Display(list):
     def render(self):
 
         line = 'FRAME %s\n' % (' '.join([str(item) for item in self]),)
+        print line
         self.conn.write(line)
         resp = self.conn.readline()
 
